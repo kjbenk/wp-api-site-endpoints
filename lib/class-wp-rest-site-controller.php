@@ -47,7 +47,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	public function get_items_permissions_check( $request ) {
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return new WP_Error( 'rest_forbidden_context', __( 'Sorry, you are not allowed to view site options.' ), array( 'status' => rest_authorization_required_code() ) );
+			return new WP_Error( 'rest_forbidden', __( 'Sorry, you are not allowed to view site options.' ), array( 'status' => rest_authorization_required_code() ) );
 		}
 
 		return true;
@@ -91,6 +91,14 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	 * @return WP_Error|WP_REST_Response
 	 */
 	public function get_item( $request ) {
+		$schema = $this->get_item_schema();
+		$option_name = $request['option'];
+		$value = $request[ $option_name ];
+
+		if ( ! array_key_exists( $option_name, $schema['properties'] ) ) {
+			return new WP_Error( 'rest_site_invalid_option', __( 'Invalid site option name.' ), array( 'status' => 404 ) );
+		}
+
 		$options  = $this->get_endpoint_args_for_item_schema( WP_REST_Server::READABLE );
 		$response = array();
 
@@ -119,7 +127,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	public function update_item_permissions_check( $request ) {
 
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return new WP_Error( 'rest_forbidden_context', __( 'Sorry, you are not allowed to edit site options.' ), array( 'status' => rest_authorization_required_code() ) );
+			return new WP_Error( 'rest_forbidden', __( 'Sorry, you are not allowed to edit site options.' ), array( 'status' => rest_authorization_required_code() ) );
 		}
 
 		return true;
@@ -137,7 +145,7 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 		$value = $request[ $option_name ];
 
 		if ( ! array_key_exists( $option_name, $schema['properties'] ) ) {
-			return new WP_Error( 'rest_site_invalid_option', __( 'Invalid site option name.' ), array( 'status' => 400 ) );
+			return new WP_Error( 'rest_site_invalid_option', __( 'Invalid site option name.' ), array( 'status' => 404 ) );
 		}
 
 		if ( isset( $schema['properties'][ $option_name ]['arg_options']['sanitize_callback'] ) && ! empty( $schema['properties'][ $option_name ]['arg_options']['sanitize_callback'] ) ) {
