@@ -17,16 +17,40 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 	public function register_routes() {
 		register_rest_route( $this->namespace, '/' . $this->rest_base, array(
 			array(
-				'methods'  => WP_REST_Server::READABLE,
-				'callback' => array( $this, 'get_items' ),
-				'args'     => $this->get_collection_params(),
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_items' ),
+				'args'                => $this->get_collection_params(),
+				'permission_callback' => array( $this, 'get_items_permissions_check' ),
 			),
-			'schema' => array( $this, 'get_public_item_schema' ),
+			'schema'                  => array( $this, 'get_public_item_schema' ),
+		) );
+
+		register_rest_route( $this->namespace, '/' . $this->rest_base . '/(?P<option>[\w-]+)', array(
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( $this, 'get_item' ),
+				'permission_callback' => array( $this, 'get_item_permissions_check' ),
+				'args'                => array(
+					'context'         => $this->get_context_param( array( 'default' => 'view' ) ),
+				),
+			),
+			array(
+				'methods'             => WP_REST_Server::EDITABLE,
+				'callback'            => array( $this, 'update_item' ),
+				'permission_callback' => array( $this, 'update_item_permissions_check' ),
+				'args'                => $this->get_endpoint_args_for_item_schema( WP_REST_Server::EDITABLE ),
+			),
+			'schema'                  => array( $this, 'get_public_item_schema' ),
 		) );
 	}
 
 	public function get_items_permissions_check( $request ) {
 
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return new WP_Error( 'rest_forbidden', __( 'Sorry, you are not allowed to view site options.' ), array( 'status' => rest_authorization_required_code() ) );
+		}
+
+		return true;
 	}
 
 	/**
@@ -50,12 +74,98 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 		return rest_ensure_response( $response );
 	}
 
-	public function delete_item_permission_check( $request ) {
+	/**
+	 * Check if a given request has access to get a specific site option.
+	 *
+	 * @param WP_REST_Request $request Full data about the request.
+	 * @return WP_Error|boolean
+	 */
+	public function get_item_permissions_check( $request ) {
+		return $this->get_items_permissions_check( $request );
+	}
 
+	/**
+	 * Get a single site setting.
+	 *
+	 * @param WP_REST_Request $request Full details about the request.
+	 * @return WP_Error|WP_REST_Response
+	 */
+	public function get_item( $request ) {
+		$schema = $this->get_item_schema();
+		$option_name = $request['option'];
+		$value = $request[ $option_name ];
+
+		if ( ! array_key_exists( $option_name, $schema['properties'] ) ) {
+			return new WP_Error( 'rest_site_invalid_option', __( 'Invalid site option name.' ), array( 'status' => 404 ) );
+		}
+
+		$options  = $this->get_endpoint_args_for_item_schema( WP_REST_Server::READABLE );
+		$response = array();
+
+		foreach ( $options as $name => $args ) {
+			if ( ! $this->get_item_mapping( $name ) ) {
+				continue;
+			}
+
+			if ( $name === $request['option'] ) {
+				$response[ $name ] = $this->prepare_item_for_response( $name, $request );
+				break;
+			}
+		}
+
+		return rest_ensure_response( $response );
+	}
+
+	public function create_item_permissions_check( $request ) {
+		// No op;
+	}
+
+	public function create_item( $request ) {
+		// No op
+	}
+
+	public function update_item_permissions_check( $request ) {
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return new WP_Error( 'rest_forbidden', __( 'Sorry, you are not allowed to edit site options.' ), array( 'status' => rest_authorization_required_code() ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Update a single site option
+	 *
+	 * @param WP_REST_Request $request Full details about the request.
+	 * @return WP_Error|WP_REST_Response
+	 */
+	public function update_item( $request ) {
+		$schema = $this->get_item_schema();
+		$option_name = $request['option'];
+		$value = $request[ $option_name ];
+
+		if ( ! array_key_exists( $option_name, $schema['properties'] ) ) {
+			return new WP_Error( 'rest_site_invalid_option', __( 'Invalid site option name.' ), array( 'status' => 404 ) );
+		}
+
+		if ( isset( $schema['properties'][ $option_name ]['arg_options']['sanitize_callback'] ) && ! empty( $schema['properties'][ $option_name ]['arg_options']['sanitize_callback'] ) ) {
+			$value = call_user_func( $schema['properties'][ $option_name ]['arg_options']['sanitize_callback'], $value );
+		}
+
+		update_option( $this->get_item_mapping( $option_name ), $value );
+
+		$request->set_param( 'context', 'edit' );
+		$response = $this->get_item( $request );
+
+		return rest_ensure_response( $response );
+	}
+
+	public function delete_item_permissions_check( $request ) {
+		// No op
 	}
 
 	public function delete_item( $request ) {
-
+		// No op
 	}
 
 	/**
