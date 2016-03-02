@@ -89,8 +89,6 @@ class WP_REST_Site_Controller extends WP_REST_Controller {
 			'type'       => 'object',
 			'properties' => array(
 
-				// Reference: https://docs.google.com/spreadsheets/d/1vI-s8MjbEllCR0_0BmBgaGvKNm1Fa42MCoqaKCwbRyQ/edit#gid=0
-
 				// Discussion
 
 				'avatar_default' => array(
